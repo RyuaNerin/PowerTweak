@@ -1,18 +1,24 @@
+#include <mutex>
+
 #include <Windows.h>
+
 #include <shlobj.h>
-#include <shlwapi.h>
 #pragma comment(lib, "shell32.lib")
+
+#include <shlwapi.h>
 #pragma comment(lib, "Shlwapi.lib")
 
-#define LINK_DESCRIPTION    L"Lock the screen by pressing the power button twice."
+#include <powrprof.h>
+#pragma comment(lib, "PowrProf.lib")
+
+#define LINK_DESCRIPTION    L"Simple tweak for power key in keyboard"
 
 #define MUTEX_NAME      L"B8A238FC-927E-4E71-B652-BA4AFAFCBAC2"
 
 #define ARG_INSTALL     L"/install"
 #define ARG_UNINSTALL   L"/uninstall"
 
-#define KeyDelta    1000
-#define KeyCount    2
+#define KeyDelta        1000
 
 int execMain();
 int execInstall();
@@ -35,8 +41,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     return execMain();
 }
 
-ULONGLONG   lTime = 0;
-int         count = 0;
+DWORD WINAPI KeyInputTicker(PVOID param);
+std::mutex  m_lock;
+bool        m_tickerRunning = false;
+int         m_count = 0;
 int execMain()
 {
     auto hMutexInstance = CreateMutexW(NULL, FALSE, MUTEX_NAME);
@@ -58,17 +66,17 @@ int execMain()
         case WM_HOTKEY:
             now = GetTickCount64();
 
-            if (now < lTime)
+            m_lock.lock();
+            if (!m_tickerRunning)
             {
-                if (++count >= KeyCount)
-                    LockWorkStation();
-            }
-            else
-            {
-                lTime = now + KeyDelta;
+                m_tickerRunning = true;
 
-                count = 1;
+                DWORD threadId;
+                CreateThread(NULL, 0, KeyInputTicker, NULL, 0, &threadId);
+                m_count = 0;
             }
+            m_count++;
+            m_lock.unlock();
 
             break;
 
@@ -77,6 +85,33 @@ int execMain()
         }
     }
     
+    return 0;
+}
+
+DWORD WINAPI KeyInputTicker(PVOID param)
+{
+    Sleep(KeyDelta);
+
+    m_lock.lock();
+    m_tickerRunning = false;
+    auto c = m_count;
+    m_lock.unlock();
+
+    switch (m_count)
+    {
+    case 1:
+        SendMessageW(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, 2);
+        break;
+
+    case 2:
+        LockWorkStation();
+        break;
+
+    case 3:
+        SetSuspendState(FALSE, FALSE, FALSE);
+        break;
+    }
+
     return 0;
 }
 

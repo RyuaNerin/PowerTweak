@@ -12,7 +12,7 @@
 
 ## Download
 
-1. Download `PowerTweak.zip` in [this page]() to appropriate location.
+1. Download `PowerTweak.zip` in [this page](https://github.com/RyuaNerin/PowerTweak/releases/latest) to appropriate location.
 
 2. Unzip downloaded from **1**
 

@@ -11,14 +11,15 @@
 #include <powrprof.h>
 #pragma comment(lib, "PowrProf.lib")
 
-#define LINK_DESCRIPTION    L"Simple tweak for power key in keyboard"
+constexpr auto LINK_DESCRIPTION = L"Simple tweak for power key in keyboard";
 
-#define MUTEX_NAME      L"B8A238FC-927E-4E71-B652-BA4AFAFCBAC2"
+constexpr auto MUTEX_NAME = L"B8A238FC-927E-4E71-B652-BA4AFAFCBAC2";
 
-#define ARG_INSTALL     L"/install"
-#define ARG_UNINSTALL   L"/uninstall"
+constexpr auto ARG_INSTALL = L"/install";
+constexpr auto ARG_UNINSTALL = L"/uninstall";
 
-#define KeyDelta        1000
+constexpr auto POWER_KEY_CODE = 0xFF;
+constexpr auto POWER_KEY_DELTA = 1000;
 
 int execMain();
 int execInstall();
@@ -51,7 +52,7 @@ int execMain()
     if (GetLastError() == ERROR_ALREADY_EXISTS)
         return 0;
 
-    RegisterHotKey(NULL, 0, MOD_NOREPEAT, 0xFF);
+    RegisterHotKey(NULL, 0, MOD_NOREPEAT, POWER_KEY_CODE);
 
     MSG msg;
     ULONGLONG now;
@@ -66,17 +67,21 @@ int execMain()
         case WM_HOTKEY:
             now = GetTickCount64();
 
-            m_lock.lock();
-            if (!m_tickerRunning)
+            //if (LOWORD(msg.lParam) == KeyCode && (HIWORD(msg.lParam) & (MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN)) != 0)
+            if (HIWORD(msg.lParam) == POWER_KEY_CODE)
             {
-                m_tickerRunning = true;
+                m_lock.lock();
+                if (!m_tickerRunning)
+                {
+                    m_tickerRunning = true;
 
-                DWORD threadId;
-                CreateThread(NULL, 0, KeyInputTicker, NULL, 0, &threadId);
-                m_count = 0;
+                    DWORD threadId;
+                    CreateThread(NULL, 0, KeyInputTicker, NULL, 0, &threadId);
+                    m_count = 0;
+                }
+                m_count++;
+                m_lock.unlock();
             }
-            m_count++;
-            m_lock.unlock();
 
             break;
 
@@ -90,7 +95,7 @@ int execMain()
 
 DWORD WINAPI KeyInputTicker(PVOID param)
 {
-    Sleep(KeyDelta);
+    Sleep(POWER_KEY_DELTA);
 
     m_lock.lock();
     m_tickerRunning = false;
